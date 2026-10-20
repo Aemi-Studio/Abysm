@@ -19,7 +19,7 @@ The second row is not hypothetical. AemiSDR's `systemStyle(_:)` checked `respond
 Requires Swift 6.3+, iOS 18+ or macOS 15+. This is an experimental package, not a stable release.
 
 ```swift
-.package(url: "https://github.com/Aemi-Studio/Abysm.git", branch: "main")
+.package(url: "https://github.com/g-cqd/Abysm.git", branch: "main")
 ```
 
 For reproducible builds, pin a reviewed commit with `revision:` instead of following `main`.
@@ -79,6 +79,6 @@ Custom `ObjCValue` conformances are an unsafe interop contract: encoding, byte c
 
 ## License
 
-[MPL-2.0](LICENSE), matching AemiSDR.
+[MIT](LICENSE). Third-party dependencies retain their own licences.
 
 See [docs/adr](docs/adr) for the decisions and [docs/diary](docs/diary) for the probes behind them.
