@@ -47,7 +47,7 @@ jobs:
           with (root / "Info.plist").open("rb") as source:
               identifier = plistlib.load(source)["CFBundleIdentifier"]
           with open(os.environ["GITHUB_ENV"], "a") as env:
-              env.write(f"SWIFT_TOOLCHAIN_ID={identifier}\\n")
+              env.write(f"SWIFT_TOOLCHAIN_ID={identifier}\n")
           print(identifier)
           PY
       - name: Test iOS with the pinned Swift toolchain
