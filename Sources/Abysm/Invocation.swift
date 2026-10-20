@@ -44,7 +44,10 @@ enum Invocation {
                 // type mismatch), then balance it. The decoded Swift value holds its own reference.
                 var decodeError: PrivateAPIError?
                 storage.withUnsafeBytes { bytes in
-                    let pointer = bytes.baseAddress!
+                    guard let pointer = bytes.baseAddress else {
+                        decodeError = .sizeMismatch(selector: name)
+                        return
+                    }
                     let object: Unmanaged<AnyObject>? =
                         resultEncoding == "@"
                         ? unsafe pointer.loadUnaligned(as: UnsafeRawPointer?.self)

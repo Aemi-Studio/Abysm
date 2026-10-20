@@ -1,13 +1,17 @@
 ---
-status: pending
+status: in-progress
 blocked-by: 
 date: 2026-10-20
 ---
 
 # 0004 — Publish, add CI on the shared graph, and have AemiSDR depend on it by revision
 
-Abysm is local only: no remote, no CI, no license file (the owner's choice). AemiSDR's `systemStyle` and corner-radius
-fixes depend on it, so until it is pushed those commits cannot be merged.
+Abysm is published at [g-cqd/Abysm](https://github.com/g-cqd/Abysm) under MIT, as requested by the owner.
+AemiSDR must use that canonical URL and a reviewed revision; no local-path dependency may ship.
+
+CI is configured but not yet green. Its first run exposed lint violations, an unavailable ARM-only floor runtime,
+and a missing-linker failure when Xcode selected the Swift.org toolchain. The violations and runtime request are
+corrected; adding Xcode's tool directory to PATH still needs remote verification.
 
 ## What lands
 

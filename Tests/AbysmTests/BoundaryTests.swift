@@ -20,13 +20,13 @@ private final class IntegerFixture: NSObject {
 struct BoundaryTests {
     @Test func wrongObjectClassThrows() {
         let object = PrivateObject(BoundaryFixture())
-        #expect(throws: (any Error).self) {
+        #expect(throws: PrivateAPIError.self) {
             let _: NSNumber? = try object.call("stringResult")
         }
     }
 
     @Test func wrongStringClassThrows() {
-        #expect(throws: (any Error).self) {
+        #expect(throws: PrivateAPIError.self) {
             let _: String = try PrivateObject(BoundaryFixture()).call("freshObject")
         }
     }
