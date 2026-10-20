@@ -1,12 +1,12 @@
 import OSLog
 import Synchronization
 
-/// Process-wide policy and bookkeeping for private API.
-public enum PrivateAPI {
+/// Process-wide policy and bookkeeping for runtime access.
+public enum RuntimeAccess {
     private static let enabled = Atomic<Bool>(true)
 
-    /// Whether private symbols may be resolved and called. The host app's switch for App Review risk or a
-    /// remote kill switch; while `false`, every resolution throws `PrivateAPIError.disabled`.
+    /// Whether runtime symbols may be resolved and invoked.
+    /// While `false`, resolution and invocation throw `RuntimeError.disabled`.
     public static var isEnabled: Bool {
         get { enabled.load(ordering: .relaxed) }
         set { enabled.store(newValue, ordering: .relaxed) }
@@ -15,12 +15,12 @@ public enum PrivateAPI {
     /// What happened to one symbol the first time it was resolved.
     public struct Resolution: Sendable, Equatable {
         public var symbol: String
-        public var error: PrivateAPIError?
+        public var error: RuntimeError?
         public var isAvailable: Bool { error == nil }
     }
 
     private static let log = Mutex<[String: Resolution]>([:])
-    private static let logger = Logger(subsystem: "studio.aemi.Abysm", category: "PrivateAPI")
+    private static let logger = Logger(subsystem: "Abysm", category: "RuntimeAccess")
 
     /// Every symbol resolved so far and its outcome, by name. A test that touches every symbol a package uses
     /// and asserts `isAvailable` is the drift canary: an OS update that renames one fails the test, not a user.
@@ -34,7 +34,7 @@ public enum PrivateAPI {
     /// Forgets recorded resolutions. For tests.
     public static func resetResolutions() { log.withLock { $0.removeAll() } }
 
-    static func record(_ symbol: String, _ error: PrivateAPIError?) {
+    static func record(_ symbol: String, _ error: RuntimeError?) {
         let isNewFailure = log.withLock { entries -> Bool in
             let isNew = entries[symbol] == nil
             entries[symbol] = Resolution(symbol: symbol, error: error)
@@ -43,11 +43,12 @@ public enum PrivateAPI {
         // One `.fault` per symbol per process: visible in a crash-free field log, never per frame.
         if isNewFailure, let error {
             logger.fault(
-                "Private API unavailable: \(symbol, privacy: .public): \(String(describing: error), privacy: .public)")
+                "Runtime access unavailable: \(symbol, privacy: .public): \(String(describing: error), privacy: .public)"
+            )
         }
     }
 
-    static func checkEnabled() throws(PrivateAPIError) {
+    static func checkEnabled() throws(RuntimeError) {
         guard isEnabled else { throw .disabled }
     }
 }

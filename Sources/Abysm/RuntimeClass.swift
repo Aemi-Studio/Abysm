@@ -1,14 +1,14 @@
 import Foundation
 import ObjectiveC
 
-/// A private Objective-C class, resolved and verified once.
+/// An Objective-C class, resolved by name and verified against its defining image when requested.
 ///
 /// ```swift
-/// let filter = try PrivateClass("CAFilter", in: .quartzCore, exported: true)
+/// let filter = try RuntimeClass("CAFilter", in: .quartzCore, exported: true)
 /// let make = try filter.method("filterWithType:", kind: .class, as: ((String) -> NSObject?).self)
 /// let blur = try make("gaussianBlur")
 /// ```
-public struct PrivateClass: @unchecked Sendable {
+public struct RuntimeClass: @unchecked Sendable {
     // `AnyClass` is an immutable pointer to runtime-owned metadata; sharing it across threads is safe.
     public let name: String
     public let value: AnyClass
@@ -22,30 +22,30 @@ public struct PrivateClass: @unchecked Sendable {
     ///   - name: The Objective-C class name.
     ///   - image: The framework that must define the class. A class of the same name from another image is missing.
     ///   - exported: Also require the linker symbol `OBJC_CLASS_$_<name>` via `dlsym`. Stronger than a runtime
-    ///     lookup, which also finds classes registered by anyone; not every private class is exported.
-    /// - Throws: ``PrivateAPIError`` for a disabled policy, a missing class, a wrong image or an unexported symbol.
-    public init(_ name: String, in image: Image? = nil, exported: Bool = false) throws(PrivateAPIError) {
+    ///     lookup, which also finds classes registered by anyone; not every runtime class is exported.
+    /// - Throws: ``RuntimeError`` for a disabled policy, a missing class, a wrong image or an unexported symbol.
+    public init(_ name: String, in image: Image? = nil, exported: Bool = false) throws(RuntimeError) {
         do {
-            try PrivateAPI.checkEnabled()
-            guard let found = unsafe objc_lookUpClass(name) else { throw PrivateAPIError.classNotFound(name) }
+            try RuntimeAccess.checkEnabled()
+            guard let found = unsafe objc_lookUpClass(name) else { throw RuntimeError.classNotFound(name) }
             if let image {
                 let actual = unsafe class_getImageName(found).map { unsafe String(cString: $0) }
                 let actualName = actual.map { ($0 as NSString).lastPathComponent }
                 guard actualName == image.name else {
-                    throw PrivateAPIError.wrongImage(class: name, expected: image.name, actual: actualName)
+                    throw RuntimeError.wrongImage(class: name, expected: image.name, actual: actualName)
                 }
             }
             if exported, unsafe dlsym(UnsafeMutableRawPointer(bitPattern: -2), "OBJC_CLASS_$_" + name) == nil {
-                throw PrivateAPIError.symbolNotExported(name)
+                throw RuntimeError.symbolNotExported(name)
             }
             self.name = name
             self.value = found
-            PrivateAPI.record(name, nil)
-        } catch let error as PrivateAPIError {
-            PrivateAPI.record(name, error)
+            RuntimeAccess.record(name, nil)
+        } catch let error as RuntimeError {
+            RuntimeAccess.record(name, error)
             throw error
         } catch {
-            fatalError("unreachable: only PrivateAPIError is thrown")
+            fatalError("unreachable: only RuntimeError is thrown")
         }
     }
 
@@ -57,12 +57,12 @@ public struct PrivateClass: @unchecked Sendable {
         _ selector: String,
         kind: Kind = .instance,
         as _: ((repeat each Argument) -> Result).Type
-    ) throws(PrivateAPIError) -> PrivateMethod<repeat each Argument, Result> {
+    ) throws(RuntimeError) -> RuntimeMethod<repeat each Argument, Result> {
         var arguments: [String] = []
         repeat arguments.append((each Argument).objcEncoding)
         let expected = Invocation.signature(result: Result.objcEncoding, arguments: arguments)
         try resolve(selector, kind: kind, expected: expected)
-        return PrivateMethod(class: self, selector: selector, isClassMethod: kind == .class)
+        return RuntimeMethod(class: self, selector: selector, isClassMethod: kind == .class)
     }
 
     /// Resolves a selector that returns nothing.
@@ -70,29 +70,29 @@ public struct PrivateClass: @unchecked Sendable {
         _ selector: String,
         kind: Kind = .instance,
         as _: ((repeat each Argument) -> Void).Type
-    ) throws(PrivateAPIError) -> PrivateAction<repeat each Argument> {
+    ) throws(RuntimeError) -> RuntimeAction<repeat each Argument> {
         var arguments: [String] = []
         repeat arguments.append((each Argument).objcEncoding)
         let expected = Invocation.signature(result: "v", arguments: arguments)
         try resolve(selector, kind: kind, expected: expected)
-        return PrivateAction(class: self, selector: selector, isClassMethod: kind == .class)
+        return RuntimeAction(class: self, selector: selector, isClassMethod: kind == .class)
     }
 
-    private func resolve(_ selector: String, kind: Kind, expected: String) throws(PrivateAPIError) {
+    private func resolve(_ selector: String, kind: Kind, expected: String) throws(RuntimeError) {
         let key = (kind == .class ? "+" : "-") + "[\(name) \(selector)]"
         do {
-            try PrivateAPI.checkEnabled()
+            try RuntimeAccess.checkEnabled()
             try Invocation.verify(class: value, selector: selector, classMethod: kind == .class, expected: expected)
-            PrivateAPI.record(key, nil)
+            RuntimeAccess.record(key, nil)
         } catch {
-            PrivateAPI.record(key, error)
+            RuntimeAccess.record(key, error)
             throw error
         }
     }
 }
 
 private func verifyReceiver(_ target: AnyObject, selector: String, classMethod: Bool, expected: String)
-    throws(PrivateAPIError)
+    throws(RuntimeError)
 {
     guard object_isClass(target) == classMethod, let cls = object_getClass(target) else {
         throw .wrongReceiver(selector: selector)
@@ -102,7 +102,7 @@ private func verifyReceiver(_ target: AnyObject, selector: String, classMethod: 
 }
 
 /// A verified selector with a result. Hold it in a `static let`: resolution runs once.
-public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unchecked Sendable {
+public struct RuntimeMethod<each Argument: ObjCValue, Result: ObjCValue>: @unchecked Sendable {
     // `Selector` and the class are immutable runtime handles.
     public let className: String
     public let selectorName: String
@@ -110,16 +110,16 @@ public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unche
     let isClassMethod: Bool
     let classObject: AnyObject
 
-    init(class privateClass: PrivateClass, selector: String, isClassMethod: Bool) {
-        className = privateClass.name
+    init(class runtimeClass: RuntimeClass, selector: String, isClassMethod: Bool) {
+        className = runtimeClass.name
         selectorName = selector
         self.selector = NSSelectorFromString(selector)
         self.isClassMethod = isClassMethod
-        classObject = privateClass.object
+        classObject = runtimeClass.object
     }
 
     /// Calls an instance method on `target`.
-    public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(PrivateAPIError)
+    public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(RuntimeError)
         -> Result
     {
         var encodings: [String] = []
@@ -132,7 +132,7 @@ public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unche
         var result: Result?
         try unsafe Invocation.send(
             to: target, selector: selector, arguments: buffer, resultEncoding: Result.objcEncoding
-        ) { (pointer) throws(PrivateAPIError) in
+        ) { (pointer) throws(RuntimeError) in
             result = try unsafe Result.decode(from: pointer)
         }
         guard let result else { throw .sizeMismatch(selector: selectorName) }
@@ -140,29 +140,29 @@ public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unche
     }
 
     /// Calls a class method.
-    public func callAsFunction(_ arguments: repeat each Argument) throws(PrivateAPIError) -> Result {
+    public func callAsFunction(_ arguments: repeat each Argument) throws(RuntimeError) -> Result {
         guard isClassMethod else { throw .selectorNotFound(class: className, selector: "+" + selectorName) }
         return try self(on: classObject, repeat each arguments)
     }
 }
 
 /// A verified selector with no result.
-public struct PrivateAction<each Argument: ObjCValue>: @unchecked Sendable {
+public struct RuntimeAction<each Argument: ObjCValue>: @unchecked Sendable {
     public let className: String
     public let selectorName: String
     let selector: Selector
     let isClassMethod: Bool
     let classObject: AnyObject
 
-    init(class privateClass: PrivateClass, selector: String, isClassMethod: Bool) {
-        className = privateClass.name
+    init(class runtimeClass: RuntimeClass, selector: String, isClassMethod: Bool) {
+        className = runtimeClass.name
         selectorName = selector
         self.selector = NSSelectorFromString(selector)
         self.isClassMethod = isClassMethod
-        classObject = privateClass.object
+        classObject = runtimeClass.object
     }
 
-    public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(PrivateAPIError) {
+    public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(RuntimeError) {
         var encodings: [String] = []
         repeat encodings.append((each Argument).objcEncoding)
         try verifyReceiver(
@@ -173,7 +173,7 @@ public struct PrivateAction<each Argument: ObjCValue>: @unchecked Sendable {
         try unsafe Invocation.send(to: target, selector: selector, arguments: buffer, resultEncoding: nil) { _ in }
     }
 
-    public func callAsFunction(_ arguments: repeat each Argument) throws(PrivateAPIError) {
+    public func callAsFunction(_ arguments: repeat each Argument) throws(RuntimeError) {
         guard isClassMethod else { throw .selectorNotFound(class: className, selector: "+" + selectorName) }
         try self(on: classObject, repeat each arguments)
     }

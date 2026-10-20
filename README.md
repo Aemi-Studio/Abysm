@@ -1,73 +1,62 @@
 # Abysm
 
-Typed, verified access to private Objective-C API, built on [InternedStrings](https://github.com/Aemi-Studio/aemi).
+Typed Objective-C runtime interop for Swift: resolve classes, declare method signatures, and read or write properties.
 
-Private API fails in three ways, and the usual tools handle one of them:
-
-| Failure | `responds(to:)` + `perform` | `value(forKey:)` | Abysm |
-|---|---|---|---|
-| The selector is gone | caught | raises `NSUnknownKeyException` | reported, never raised |
-| The selector exists with another **signature** | **not caught**: the call runs with the wrong ABI | not applicable | refused: `signatureMismatch(expected: "@@:@", actual: "@@:q")` |
-| The callee raises | crashes the process (Swift cannot catch it) | crashes | caught in a small Objective-C shim, reported |
-
-The second row is not hypothetical. AemiSDR's `systemStyle(_:)` checked `responds(to: settingsForStyle:)`, then called it with
-`perform(_:with:)`; the selector takes an `NSInteger`, so every preset silently resolved to the same fallback
-(AemiSDR diary 2026-10-20-01).
+Abysm checks runtime type encodings before invoking a selector, validates object results, and reports Objective-C
+exceptions as Swift errors. A small `NSInvocation` bridge handles scalar, object and supported struct values.
 
 ## Install
 
-Requires Swift 6.3+, iOS 18+ or macOS 15+. This is an experimental package, not a stable release.
+Swift 6.3+, iOS 18+ or macOS 15+. Experimental; no stable release yet.
 
 ```swift
 .package(url: "https://github.com/g-cqd/Abysm.git", branch: "main")
 ```
 
-For reproducible builds, pin a reviewed commit with `revision:` instead of following `main`.
+Use a reviewed `revision:` for reproducible builds.
 
-## Use
+## Typed methods
 
 ```swift
 import Abysm
+import Foundation
 
-// A class: image and exported symbol checked, once.
-let filter = try PrivateClass("CAFilter", in: .quartzCore, exported: true)
-
-// A method: the Swift function type IS the declaration. `(String) -> NSObject?` is the signature `@@:@`,
-// compared with the runtime's before any call.
-let make = try filter.method("filterWithType:", kind: .class, as: ((String) -> NSObject?).self)
-let blur = try make("gaussianBlur")
-
-// An object: dynamic members, each read or write checked against the real class.
-let object = PrivateObject(layer)
-let radius: Double? = object.cornerRadius          // getter `cornerRadius`, signature `d@:`
-object.isHidden = true                              // setter `setHidden:`, signature `v@:B`
-
-// Throwing forms say why.
-let value: Int = try object.read("cornerRadius")   // throws signatureMismatch(expected: "q@:", actual: "d@:")
+let numbers = try RuntimeClass("NSNumber")
+let make = try numbers.method(
+    "numberWithInteger:", kind: .class, as: ((Int) -> NSNumber?).self)
+let answer = try make(42)
 ```
 
-Names can come from `@Interned` (re-exported) rather than plain literals; this is obfuscation, not secrecy. Hold handles in a
-`static let`: resolution runs once.
+The Swift function type is the declaration. `(Int) -> NSNumber?` describes `@@:q`; declaring an object argument instead
+of an integer throws `RuntimeError.signatureMismatch` before dispatch. Hold resolved handles for repeated calls.
+
+An optional `Image` checks which framework defines a class. `exported: true` additionally checks its linker symbol.
+
+## Dynamic properties
 
 ```swift
-enum Names { @Interned static var settingsClass = "_UIBackdropViewSettings" }
-enum Private {
-    static let settings = try? PrivateClass(Names.settingsClass, in: .uiKitCore)
-}
+import QuartzCore
+
+let layer = CALayer()
+let object = RuntimeObject(layer)
+object.cornerRadius = 12.0
+let radius: Double? = object.cornerRadius
+
+// Throwing forms explain a failed read or write.
+let value: Double = try object.read("cornerRadius")
+try object.write(18.0, to: "cornerRadius")
 ```
 
-## Policy and the canary
+Missing or incompatible dynamic members return `nil` and record a diagnostic. The throwing forms preserve the reason.
+Objects cross method boundaries as optionals, so nil results remain representable.
 
-- `PrivateAPI.isEnabled = false` makes every resolution throw `.disabled`: a host's App Review switch or a remote kill switch.
-- Every resolution is recorded. A test that touches every symbol a package uses and asserts `PrivateAPI.failures.isEmpty`
-  is a drift canary: run it on the floor and the newest OS runtime, and an OS update that renames a symbol fails CI, not a user.
-- A failure is logged once per process at `.fault`; reads through `PrivateObject` degrade to `nil`.
+## Resolution reporting
 
-## What it is not
+`RuntimeAccess.resolutions` records each symbol and its result; `failures` selects unsuccessful resolutions.
+Integration tests can inspect these records across supported OS versions.
+Setting `RuntimeAccess.isEnabled = false` disables resolution and invocation, including previously resolved handles.
 
-- Not a hooking or swizzling library, and not a Swift-symbol or C++ resolver. For those, see
-  [ABIBridge](https://github.com/lynnswap/ABIBridge), which is broader and heavier (libffi, MachOKit, iOS 18.4 floor).
-- Not a way to make private API safe to ship: it makes it **detectable** and **degradable**. App Review is a policy question.
+InternedStrings is re-exported for adopters that already use it to manage runtime names; ordinary strings work too.
 
 ## Interop limits
 
@@ -77,8 +66,10 @@ not in runtime type encodings and are **not supported**. Neither are variadic me
 swizzling. Verification caches assume loaded classes and their method signatures stay unchanged.
 Custom `ObjCValue` conformances are an unsafe interop contract: encoding, byte count and decoder must agree.
 
-## License
+Abysm does not implement hooks, Swift symbol resolution or C++ dispatch. [ABIBridge](https://github.com/lynnswap/ABIBridge)
+covers a broader range of interop use cases.
 
+## Development and licence
+
+See [ADRs](docs/adr), [probe diary](docs/diary), [roadmap](docs/roadmap) and [white paper](docs/WHITE-PAPER.md).
 [MIT](LICENSE). Third-party dependencies retain their own licences.
-
-See [docs/adr](docs/adr) for the decisions and [docs/diary](docs/diary) for the probes behind them.

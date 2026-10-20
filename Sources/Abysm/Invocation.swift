@@ -9,9 +9,9 @@ enum Invocation {
         selector: Selector,
         arguments: ArgumentBuffer,
         resultEncoding: String?,
-        decode: (UnsafeRawPointer) throws(PrivateAPIError) -> Void
-    ) throws(PrivateAPIError) {
-        try PrivateAPI.checkEnabled()
+        decode: (UnsafeRawPointer) throws(RuntimeError) -> Void
+    ) throws(RuntimeError) {
+        try RuntimeAccess.checkEnabled()
         let name = NSStringFromSelector(selector)
 
         var resultSize = 0
@@ -42,7 +42,7 @@ enum Invocation {
             case .OK:
                 // The shim transfers a +1 object result. Keep it alive through decoding (including a thrown
                 // type mismatch), then balance it. The decoded Swift value holds its own reference.
-                var decodeError: PrivateAPIError?
+                var decodeError: RuntimeError?
                 storage.withUnsafeBytes { bytes in
                     guard let pointer = bytes.baseAddress else {
                         decodeError = .sizeMismatch(selector: name)
@@ -57,7 +57,7 @@ enum Invocation {
                     defer { unsafe object?.release() }
                     do {
                         try unsafe decode(pointer)
-                    } catch let error as PrivateAPIError {
+                    } catch let error as RuntimeError {
                         decodeError = error
                     } catch {
                         preconditionFailure("decoder violated its typed-throws contract")
@@ -92,7 +92,7 @@ enum Invocation {
     /// Verdicts already reached. A signature does not change while a class stays loaded, so a verdict is computed
     /// once per (class, selector, declaration) and every later access costs a dictionary lookup instead of building
     /// an \`NSMethodSignature\`. Failures are cached too, so a symbol that is gone is not re-derived every frame.
-    private static let verdicts = Mutex<[VerificationKey: PrivateAPIError?]>([:])
+    private static let verdicts = Mutex<[VerificationKey: RuntimeError?]>([:])
 
     /// Checks the runtime's signature for a selector against the declaration.
     static func verify(
@@ -100,7 +100,7 @@ enum Invocation {
         selector: String,
         classMethod: Bool,
         expected: String
-    ) throws(PrivateAPIError) {
+    ) throws(RuntimeError) {
         let key = VerificationKey(
             cls: ObjectIdentifier(cls), selector: selector, classMethod: classMethod, expected: expected)
         if let cached = verdicts.withLock({ $0[key] }) {
@@ -117,7 +117,7 @@ enum Invocation {
         selector: String,
         classMethod: Bool,
         expected: String
-    ) -> PrivateAPIError? {
+    ) -> RuntimeError? {
         let sel = NSSelectorFromString(selector)
         guard let actual = abysm_signature(cls, sel, classMethod) else {
             return .selectorNotFound(class: NSStringFromClass(cls), selector: selector)

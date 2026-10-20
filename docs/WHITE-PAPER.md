@@ -2,7 +2,7 @@
 
 The rules this package runs on. **Paste this at the start of every iteration.** The ecosystem's law (the evidence rule,
 red TDD, the performance doctrine, strictness, documentation law) is `ask`'s and TerminalKit's white paper, adapted
-for AemiSDR; this is the copy for the package that makes private API safe to *use*. Where they disagree on a shared
+for AemiSDR; this is the copy for the package that makes runtime access safe to *use*. Where they disagree on a shared
 principle, that is a defect to reconcile (Aemi ADR-0013 proposes one synced core).
 
 ## What Abysm promises
@@ -11,7 +11,7 @@ principle, that is a defect to reconcile (Aemi ADR-0013 proposes one synced core
 against the runtime's own signature for the real class before it is sent, and a mismatch is an error value that names
 both signatures (ADR-0002).
 
-**Nothing the host cannot survive.** An `NSException` from private API is caught, never unwound through Swift. A
+**Nothing the host cannot survive.** An `NSException` from runtime access is caught, never unwound through Swift. A
 missing symbol degrades to `nil`/an error and is reported once at `.fault`. The host can switch it all off.
 
 **Nothing silent.** Every resolution is recorded; a test can assert the whole set. A renamed symbol fails CI.
@@ -45,7 +45,7 @@ frame. Verification verdicts are cached; every performance change is benchmarked
 
 Strict memory safety, Swift 6 mode, warnings as errors, upcoming features as in the ecosystem. Every `unsafe` is at a
 boundary the shim checks: sizes are compared with `NSMethodSignature` before bytes are copied. `NSObject` is not an
-`ObjCValue`, only `Optional<NSObject>` is: a private method returning nil is routine and a non-optional would have to
+`ObjCValue`, only `Optional<NSObject>` is: a runtime method returning nil is routine and a non-optional would have to
 invent an object (probed: the first draft did, with an `unsafeDowncast` of `NSNull`, which is undefined behaviour).
 
 ## 4. Documentation law

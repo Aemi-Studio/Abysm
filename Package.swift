@@ -1,7 +1,7 @@
 // swift-tools-version: 6.3
 import PackageDescription
 
-// Abysm — typed, verified access to private Objective-C API, built on InternedStrings.
+// Abysm — typed, verified access to Objective-C runtime interoperation, built on InternedStrings.
 //
 // The floor is iOS 18 / macOS 15, the same as AemiSDR and the Aemi packages it sits beside. Parameter packs and
 // `Synchronization` both compile there (probed in docs/diary/2026-10-20-01.md); `Span` and `InlineArray` do not,
@@ -31,7 +31,7 @@ let package = Package(
     ],
     targets: [
         // The one place Objective-C is unavoidable: `NSInvocation` is unavailable to Swift, and an `NSException`
-        // raised by private API cannot be caught from Swift at all.
+        // raised by runtime access cannot be caught from Swift at all.
         .target(name: "CAbysm", publicHeadersPath: "include"),
         .target(
             name: "Abysm",

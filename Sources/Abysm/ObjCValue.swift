@@ -14,7 +14,7 @@ public protocol ObjCValue {
     /// Appends this value's bytes (and retains anything it points to) for the duration of a call.
     func encode(into buffer: inout ArgumentBuffer)
     /// Reads a value of this type from the bytes the runtime wrote.
-    static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> Self
+    static func decode(from pointer: UnsafeRawPointer) throws(RuntimeError) -> Self
 }
 
 extension ObjCValue where Self: BitwiseCopyable {
@@ -41,7 +41,7 @@ extension CGRect: ObjCValue { public static var objcEncoding: String { "{CGRect=
 
 extension Selector: ObjCValue { public static var objcEncoding: String { ":" } }
 
-// Objects cross as `Optional`: a private method that returns nil is common, and a non-optional declaration would
+// Objects cross as `Optional`: a runtime method that returns nil is common, and a non-optional declaration would
 // have to invent an object for it. A non-optional argument is promoted to `Optional` at the call site.
 extension Optional: ObjCValue where Wrapped: NSObject {
     public static var objcEncoding: String { "@" }
@@ -53,7 +53,7 @@ extension Optional: ObjCValue where Wrapped: NSObject {
         }
     }
 
-    public static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> Wrapped? {
+    public static func decode(from pointer: UnsafeRawPointer) throws(RuntimeError) -> Wrapped? {
         guard let raw = unsafe pointer.loadUnaligned(as: UnsafeRawPointer?.self) else { return nil }
         let object = unsafe Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue()
         guard let value = object as? Wrapped else {
@@ -72,7 +72,7 @@ extension String: ObjCValue {
         buffer.appendObject(self as NSString)
     }
 
-    public static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> String {
+    public static func decode(from pointer: UnsafeRawPointer) throws(RuntimeError) -> String {
         guard let value = try unsafe Optional<NSString>.decode(from: pointer) else {
             throw .objectTypeMismatch(expected: "NSString", actual: "nil")
         }

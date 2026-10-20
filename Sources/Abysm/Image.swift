@@ -1,4 +1,4 @@
-/// The framework that defines a private class, matched against the runtime's own record of where the class came from
+/// The framework that defines a runtime class, matched against the runtime's own record of where the class came from
 /// (`class_getImageName`). A class of the same name from another image is treated as missing: a renamed class and
 /// a different framework's class are not the same thing.
 public struct Image: Sendable, Hashable, ExpressibleByStringLiteral {

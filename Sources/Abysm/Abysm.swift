@@ -1,3 +1,2 @@
-// Abysm builds on InternedStrings, so a name is written once with `@Interned` and never appears in the binary's
-// string table; re-exporting it means an adopter writes both with one import.
+// Re-export the name-management helpers for adopters that use them alongside runtime interop.
 @_exported public import InternedStrings

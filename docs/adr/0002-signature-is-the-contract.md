@@ -16,10 +16,10 @@ preset resolved to the same fallback.
 - A declaration is a Swift function type. Each parameter and the result are `ObjCValue`s that state their own encoding
   (`Int` is `q`, `Double` `d`, `Bool` `B`, `CGRect` `{CGRect={CGPoint=dd}{CGSize=dd}}`, an object `@`).
 - The runtime's signature (`abysm_signature`: return type, receiver, selector, arguments, offsets removed) must equal
-  `result + "@:" + arguments`. Otherwise `PrivateAPIError.signatureMismatch(expected:, actual:)`, with both strings.
+  `result + "@:" + arguments`. Otherwise `RuntimeError.signatureMismatch(expected:, actual:)`, with both strings.
 - Sizes are checked again in the shim against `NSMethodSignature` before an argument is copied, so a wrong declaration
   that somehow passed cannot overrun a buffer.
-- Objects are `Optional`-only: a private method returning nil is routine, and a non-optional would have to invent an object.
+- Objects are `Optional`-only: a runtime method returning nil is routine, and a non-optional would have to invent an object.
 - Structs are declared by the adopter (`ObjCValue` + `BitwiseCopyable` + an encoding). Probed: a 4×`CGSize` struct return
   (`_UICornerInsets`) cannot be expressed as a Swift `@convention(c)` type at all; through the shim it is one declaration.
 - Verification is exact. A looser match (ignoring struct tag names) is a later, measured decision, not a default.

@@ -19,28 +19,28 @@ private final class IntegerFixture: NSObject {
 @Suite("Invocation boundaries")
 struct BoundaryTests {
     @Test func wrongObjectClassThrows() {
-        let object = PrivateObject(BoundaryFixture())
-        #expect(throws: PrivateAPIError.self) {
+        let object = RuntimeObject(BoundaryFixture())
+        #expect(throws: RuntimeError.self) {
             let _: NSNumber? = try object.call("stringResult")
         }
     }
 
     @Test func wrongStringClassThrows() {
-        #expect(throws: PrivateAPIError.self) {
-            let _: String = try PrivateObject(BoundaryFixture()).call("freshObject")
+        #expect(throws: RuntimeError.self) {
+            let _: String = try RuntimeObject(BoundaryFixture()).call("freshObject")
         }
     }
 
     @Test func receiverWithSameSizeDifferentSignatureIsRefused() throws {
-        let method = try PrivateClass("AbysmBoundaryFixture").method("doubleValue", as: (() -> Double).self)
-        #expect(throws: PrivateAPIError.signatureMismatch(selector: "doubleValue", expected: "d@:", actual: "q@:")) {
+        let method = try RuntimeClass("AbysmBoundaryFixture").method("doubleValue", as: (() -> Double).self)
+        #expect(throws: RuntimeError.signatureMismatch(selector: "doubleValue", expected: "d@:", actual: "q@:")) {
             try method(on: IntegerFixture())
         }
     }
 
     @Test func instanceHandleCannotReceiveAClass() throws {
-        let action = try PrivateClass("CALayer").action("setCornerRadius:", as: ((Double) -> Void).self)
-        #expect(throws: PrivateAPIError.wrongReceiver(selector: "setCornerRadius:")) {
+        let action = try RuntimeClass("CALayer").action("setCornerRadius:", as: ((Double) -> Void).self)
+        #expect(throws: RuntimeError.wrongReceiver(selector: "setCornerRadius:")) {
             try action(on: CALayer.self, 2.0)
         }
     }
@@ -48,7 +48,7 @@ struct BoundaryTests {
     @Test func borrowedObjectLivesUntilSwiftOwnsItAndDoesNotLeak() throws {
         weak var observed: NSObject?
         try autoreleasepool {
-            let value: NSObject? = try PrivateObject(BoundaryFixture()).call("freshObject")
+            let value: NSObject? = try RuntimeObject(BoundaryFixture()).call("freshObject")
             observed = value
             #expect(observed != nil)
         }
@@ -58,7 +58,7 @@ struct BoundaryTests {
     @Test func ownedObjectAndInitialiserAreBalanced() throws {
         weak var observed: NSObject?
         try autoreleasepool {
-            let cls = try PrivateClass("NSObject")
+            let cls = try RuntimeClass("NSObject")
             let allocate = try cls.method("alloc", kind: .class, as: (() -> NSObject?).self)
             let initialise = try cls.method("init", as: (() -> NSObject?).self)
             let raw = try #require(try allocate())

@@ -1,7 +1,7 @@
-/// Why a private symbol could not be used. Every case names what was expected and what was found, so a log line is
+/// Why a runtime symbol could not be used. Every case names what was expected and what was found, so a log line is
 /// enough to know which OS release moved.
-public enum PrivateAPIError: Error, Sendable, Equatable {
-    /// The host switched private API off (`PrivateAPI.isEnabled`).
+public enum RuntimeError: Error, Sendable, Equatable {
+    /// The host switched runtime access off (`RuntimeAccess.isEnabled`).
     case disabled
     /// An object result has a different dynamic class than the requested Swift type (or is unexpectedly nil).
     case objectTypeMismatch(expected: String, actual: String)
