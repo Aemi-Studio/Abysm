@@ -3,6 +3,9 @@ public import Foundation
 
 /// A Swift type that can cross an Objective-C message boundary, declaring its own type encoding.
 ///
+/// Custom conformances are an unsafe interop contract: the encoding, encoded bytes and decoder's read size must
+/// agree. The decoder may read only the size specified by the encoding, and must not let pointers escape.
+///
 /// The encoding is what lets a call be checked: a declaration `(Int) -> NSObject?` is the signature `@@:q`, and the
 /// runtime's signature for the real selector is compared to it before any call is made.
 public protocol ObjCValue {
@@ -11,7 +14,7 @@ public protocol ObjCValue {
     /// Appends this value's bytes (and retains anything it points to) for the duration of a call.
     func encode(into buffer: inout ArgumentBuffer)
     /// Reads a value of this type from the bytes the runtime wrote.
-    static func decode(from pointer: UnsafeRawPointer) -> Self
+    static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> Self
 }
 
 extension ObjCValue where Self: BitwiseCopyable {
@@ -50,9 +53,14 @@ extension Optional: ObjCValue where Wrapped: NSObject {
         }
     }
 
-    public static func decode(from pointer: UnsafeRawPointer) -> Wrapped? {
+    public static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> Wrapped? {
         guard let raw = unsafe pointer.loadUnaligned(as: UnsafeRawPointer?.self) else { return nil }
-        return unsafe unsafeDowncast(Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue(), to: Wrapped.self)
+        let object = unsafe Unmanaged<AnyObject>.fromOpaque(raw).takeUnretainedValue()
+        guard let value = object as? Wrapped else {
+            throw .objectTypeMismatch(
+                expected: String(describing: Wrapped.self), actual: String(describing: type(of: object)))
+        }
+        return value
     }
 }
 
@@ -64,9 +72,11 @@ extension String: ObjCValue {
         buffer.appendObject(self as NSString)
     }
 
-    public static func decode(from pointer: UnsafeRawPointer) -> String {
-        guard let raw = unsafe pointer.loadUnaligned(as: UnsafeRawPointer?.self) else { return "" }
-        return unsafe (Unmanaged<NSString>.fromOpaque(raw).takeUnretainedValue()) as String
+    public static func decode(from pointer: UnsafeRawPointer) throws(PrivateAPIError) -> String {
+        guard let value = try unsafe Optional<NSString>.decode(from: pointer) else {
+            throw .objectTypeMismatch(expected: "NSString", actual: "nil")
+        }
+        return value as String
     }
 }
 

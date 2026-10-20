@@ -26,6 +26,8 @@ typedef NS_CLOSED_ENUM(int, AbysmStatus) {
 ///
 /// @param args       `argc` pointers, one per explicit argument (receiver and selector are implicit).
 /// @param argSizes   `argc` byte sizes, one per argument.
+/// Object results transfer +1 ownership to the caller, who must release after decoding. Standard Objective-C
+/// method families are supported; custom ownership attributes (absent from runtime encodings) are not.
 /// @param result     Where the return value is written; may be NULL when `resultSize` is 0.
 /// @param resultSize Byte size of the return type; 0 for `void`.
 AbysmStatus abysm_invoke(id target, SEL selector, size_t argc, const void *_Nullable const *_Nullable args,

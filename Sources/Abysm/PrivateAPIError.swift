@@ -3,6 +3,10 @@
 public enum PrivateAPIError: Error, Sendable, Equatable {
     /// The host switched private API off (`PrivateAPI.isEnabled`).
     case disabled
+    /// An object result has a different dynamic class than the requested Swift type (or is unexpectedly nil).
+    case objectTypeMismatch(expected: String, actual: String)
+    /// A class-method handle received an instance, or an instance-method handle received a class.
+    case wrongReceiver(selector: String)
     /// No class with this name is registered with the runtime.
     case classNotFound(String)
     /// The class exists but is defined by a different image than the one expected.

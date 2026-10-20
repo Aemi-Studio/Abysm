@@ -40,7 +40,7 @@ public struct PrivateObject {
             try unsafe Invocation.send(
                 to: base, selector: NSSelectorFromString(name), arguments: ArgumentBuffer(),
                 resultEncoding: Value.objcEncoding
-            ) { result = unsafe Value.decode(from: $0) }
+            ) { (pointer) throws(PrivateAPIError) in result = try unsafe Value.decode(from: pointer) }
             guard let result else { throw .sizeMismatch(selector: name) }
             return result
         }
@@ -81,7 +81,7 @@ public struct PrivateObject {
             try unsafe Invocation.send(
                 to: base, selector: NSSelectorFromString(selector), arguments: buffer,
                 resultEncoding: Result.objcEncoding
-            ) { result = unsafe Result.decode(from: $0) }
+            ) { (pointer) throws(PrivateAPIError) in result = try unsafe Result.decode(from: pointer) }
             guard let result else { throw .sizeMismatch(selector: selector) }
             return result
         }

@@ -1,8 +1,20 @@
 #import "CAbysm.h"
 #import <objc/runtime.h>
+#include <ctype.h>
+#include <string.h>
+
+// Objective-C method-family rules: ignore leading underscores; a lowercase continuation is not a family match.
+// Custom ns_returns_retained/not_retained annotations are not in runtime encodings and are unsupported.
+static BOOL abysm_family(SEL selector, const char *family) {
+    const char *name = sel_getName(selector);
+    while (*name == '_') name++;
+    size_t length = strlen(family);
+    return strncmp(name, family, length) == 0 && !islower((unsigned char)name[length]);
+}
 
 AbysmStatus abysm_invoke(id target, SEL selector, size_t argc, const void *const *args, const size_t *argSizes,
                          void *result, size_t resultSize, NSString **exceptionName) {
+    @try {
     NSMethodSignature *signature = [target methodSignatureForSelector:selector];
     if (signature == nil) {
         return AbysmStatusNoSignature;
@@ -21,16 +33,27 @@ AbysmStatus abysm_invoke(id target, SEL selector, size_t argc, const void *const
         }
     }
 
-    @try {
         NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:signature];
         invocation.target = target;
         invocation.selector = selector;
         for (size_t index = 0; index < argc; index++) {
             [invocation setArgument:(void *)args[index] atIndex:(NSInteger)index + 2];
         }
+        // init consumes one receiver reference, even when it returns a replacement. Lend it a separate +1
+        // so the Swift caller's reference to the allocated receiver remains balanced.
+        BOOL initialiser = abysm_family(selector, "init");
+        if (initialiser) CFRetain((__bridge CFTypeRef)target);
         [invocation invoke];
         if (resultSize > 0 && result != NULL) {
             [invocation getReturnValue:result];
+            if (strcmp(signature.methodReturnType, "@") == 0) {
+                __unsafe_unretained id object = nil;
+                memcpy(&object, result, sizeof(object));
+                BOOL owned = initialiser || abysm_family(selector, "alloc") || abysm_family(selector, "new")
+                    || abysm_family(selector, "copy") || abysm_family(selector, "mutableCopy");
+                // Transfer one reference to Swift; it releases after decoding, also on a type mismatch.
+                if (object != nil && !owned) CFRetain((__bridge CFTypeRef)object);
+            }
         }
     } @catch (NSException *exception) {
         if (exceptionName != NULL) {

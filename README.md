@@ -14,6 +14,16 @@ The second row is not hypothetical. AemiSDR's `systemStyle(_:)` checked `respond
 `perform(_:with:)`; the selector takes an `NSInteger`, so every preset silently resolved to the same fallback
 (AemiSDR diary 2026-10-20-01).
 
+## Install
+
+Requires Swift 6.3+, iOS 18+ or macOS 15+. This is an experimental package, not a stable release.
+
+```swift
+.package(url: "https://github.com/Aemi-Studio/Abysm.git", branch: "main")
+```
+
+For reproducible builds, pin a reviewed commit with `revision:` instead of following `main`.
+
 ## Use
 
 ```swift
@@ -36,7 +46,7 @@ object.isHidden = true                              // setter `setHidden:`, sign
 let value: Int = try object.read("cornerRadius")   // throws signatureMismatch(expected: "q@:", actual: "d@:")
 ```
 
-Names come from `@Interned` (re-exported), so they are absent from the binary's string table. Hold handles in a
+Names can come from `@Interned` (re-exported) rather than plain literals; this is obfuscation, not secrecy. Hold handles in a
 `static let`: resolution runs once.
 
 ```swift
@@ -58,5 +68,17 @@ enum Private {
 - Not a hooking or swizzling library, and not a Swift-symbol or C++ resolver. For those, see
   [ABIBridge](https://github.com/lynnswap/ABIBridge), which is broader and heavier (libffi, MachOKit, iOS 18.4 floor).
 - Not a way to make private API safe to ship: it makes it **detectable** and **degradable**. App Review is a policy question.
+
+## Interop limits
+
+Object results are checked against the requested Swift class and retained through decoding. Standard Objective-C
+ownership families (`alloc`, `new`, `copy`, `mutableCopy`, `init`) are balanced. Custom ownership attributes are
+not in runtime type encodings and are **not supported**. Neither are variadic methods, blocks, or concurrent method
+swizzling. Verification caches assume loaded classes and their method signatures stay unchanged.
+Custom `ObjCValue` conformances are an unsafe interop contract: encoding, byte count and decoder must agree.
+
+## License
+
+[MPL-2.0](LICENSE), matching AemiSDR.
 
 See [docs/adr](docs/adr) for the decisions and [docs/diary](docs/diary) for the probes behind them.

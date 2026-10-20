@@ -9,7 +9,7 @@ enum Invocation {
         selector: Selector,
         arguments: ArgumentBuffer,
         resultEncoding: String?,
-        decode: (UnsafeRawPointer) -> Void
+        decode: (UnsafeRawPointer) throws(PrivateAPIError) -> Void
     ) throws(PrivateAPIError) {
         try PrivateAPI.checkEnabled()
         let name = NSStringFromSelector(selector)
@@ -40,7 +40,27 @@ enum Invocation {
 
         switch status {
             case .OK:
-                storage.withUnsafeBytes { unsafe decode($0.baseAddress ?? UnsafeRawPointer(bitPattern: 1)!) }
+                // The shim transfers a +1 object result. Keep it alive through decoding (including a thrown
+                // type mismatch), then balance it. The decoded Swift value holds its own reference.
+                var decodeError: PrivateAPIError?
+                storage.withUnsafeBytes { bytes in
+                    let pointer = bytes.baseAddress!
+                    let object: Unmanaged<AnyObject>? =
+                        resultEncoding == "@"
+                        ? unsafe pointer.loadUnaligned(as: UnsafeRawPointer?.self)
+                            .map {
+                                unsafe Unmanaged<AnyObject>.fromOpaque($0)
+                            } : nil
+                    defer { unsafe object?.release() }
+                    do {
+                        try unsafe decode(pointer)
+                    } catch let error as PrivateAPIError {
+                        decodeError = error
+                    } catch {
+                        preconditionFailure("decoder violated its typed-throws contract")
+                    }
+                }
+                if let decodeError { throw decodeError }
             case .noSignature:
                 throw .selectorNotFound(class: String(describing: type(of: target)), selector: name)
             case .argumentCount:

@@ -91,6 +91,16 @@ public struct PrivateClass: @unchecked Sendable {
     }
 }
 
+private func verifyReceiver(_ target: AnyObject, selector: String, classMethod: Bool, expected: String)
+    throws(PrivateAPIError)
+{
+    guard object_isClass(target) == classMethod, let cls = object_getClass(target) else {
+        throw .wrongReceiver(selector: selector)
+    }
+    // For class objects cls is the metaclass; checking its instance method checks the actual class method.
+    try Invocation.verify(class: cls, selector: selector, classMethod: false, expected: expected)
+}
+
 /// A verified selector with a result. Hold it in a `static let`: resolution runs once.
 public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unchecked Sendable {
     // `Selector` and the class are immutable runtime handles.
@@ -112,13 +122,18 @@ public struct PrivateMethod<each Argument: ObjCValue, Result: ObjCValue>: @unche
     public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(PrivateAPIError)
         -> Result
     {
+        var encodings: [String] = []
+        repeat encodings.append((each Argument).objcEncoding)
+        try verifyReceiver(
+            target, selector: selectorName, classMethod: isClassMethod,
+            expected: Invocation.signature(result: Result.objcEncoding, arguments: encodings))
         var buffer = ArgumentBuffer()
         repeat (each arguments).encode(into: &buffer)
         var result: Result?
         try unsafe Invocation.send(
             to: target, selector: selector, arguments: buffer, resultEncoding: Result.objcEncoding
-        ) {
-            result = unsafe Result.decode(from: $0)
+        ) { (pointer) throws(PrivateAPIError) in
+            result = try unsafe Result.decode(from: pointer)
         }
         guard let result else { throw .sizeMismatch(selector: selectorName) }
         return result
@@ -148,6 +163,11 @@ public struct PrivateAction<each Argument: ObjCValue>: @unchecked Sendable {
     }
 
     public func callAsFunction(on target: AnyObject, _ arguments: repeat each Argument) throws(PrivateAPIError) {
+        var encodings: [String] = []
+        repeat encodings.append((each Argument).objcEncoding)
+        try verifyReceiver(
+            target, selector: selectorName, classMethod: isClassMethod,
+            expected: Invocation.signature(result: "v", arguments: encodings))
         var buffer = ArgumentBuffer()
         repeat (each arguments).encode(into: &buffer)
         try unsafe Invocation.send(to: target, selector: selector, arguments: buffer, resultEncoding: nil) { _ in }

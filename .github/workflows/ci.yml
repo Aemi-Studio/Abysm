@@ -1,0 +1,65 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@70762bbd2cf97ca8aa37c1608db7b3744db21f53
+    with:
+      dev-env-var: ABYSM_DEV
+      enable-linux: false
+      enable-sanitizers: true
+      sanitizers: address
+  ios:
+    name: iOS (${{ matrix.runtime }})
+    runs-on: macos-26
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: ['18.6', latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install floor runtime
+        if: matrix.runtime == '18.6'
+        run: xcodebuild -downloadPlatform iOS -buildVersion 18.6 -architectureVariant arm64
+      - name: Select a simulator
+        env:
+          REQUESTED_RUNTIME: ${{ matrix.runtime }}
+        run: python3 .github/scripts/select-simulator.py
+      - name: Install Swift
+        uses: swift-actions/setup-swift@364295d9c23900ce04d4e5cc708387921b4e50f9 # v3.0.0-beta.1
+        with:
+          swift-version: '6.4.1'
+      - name: Find the installed Swift toolchain
+        run: |
+          python3 - <<'PY'
+          import json, os, pathlib, plistlib, subprocess
+          info = json.loads(subprocess.check_output(["swiftc", "-print-target-info"]))
+          root = pathlib.Path(info["paths"]["runtimeResourcePath"]).parents[2]
+          with (root / "Info.plist").open("rb") as source:
+              identifier = plistlib.load(source)["CFBundleIdentifier"]
+          with open(os.environ["GITHUB_ENV"], "a") as env:
+              env.write(f"SWIFT_TOOLCHAIN_ID={identifier}\\n")
+          print(identifier)
+          PY
+      - name: Test iOS with the pinned Swift toolchain
+        run: |
+          xcodebuild -toolchain "$SWIFT_TOOLCHAIN_ID" -skipMacroValidation -skipPackagePluginValidation \
+            -scheme Abysm -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath "$RUNNER_TEMP/Abysm" -resultBundlePath "$RUNNER_TEMP/Abysm-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO test
+      - name: Remove temporary simulator
+        if: always()
+        run: |
+          if [ -n "${SIMULATOR_ID:-}" ]; then
+            xcrun simctl shutdown "$SIMULATOR_ID" || true
+            xcrun simctl delete "$SIMULATOR_ID"
+          fi
