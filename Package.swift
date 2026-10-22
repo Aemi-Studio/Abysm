@@ -6,7 +6,7 @@ import PackageDescription
 // The floor is iOS 18 / macOS 15, the same as AemiSDR and the Aemi packages it sits beside. Parameter packs and
 // `Synchronization` both compile there (probed in docs/diary/2026-10-20-01.md); `Span` and `InlineArray` do not,
 // and are not used.
-private let strictSettings: [SwiftSetting] = [
+var strictSettings: [SwiftSetting] = [
     .swiftLanguageMode(.v6),
     .strictMemorySafety(),
     .enableUpcomingFeature("ExistentialAny"),
@@ -14,6 +14,11 @@ private let strictSettings: [SwiftSetting] = [
     .enableUpcomingFeature("InternalImportsByDefault"),
     .enableUpcomingFeature("MemberImportVisibility")
 ]
+
+// Gated behind an environment variable so Xcode dependency builds do not collide with `-suppress-warnings`.
+if Context.environment["ABYSM_WERROR"] != nil {
+    strictSettings.append(.unsafeFlags(["-warnings-as-errors"]))
+}
 
 let package = Package(
     name: "Abysm",
