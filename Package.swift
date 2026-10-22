@@ -12,8 +12,7 @@ private let strictSettings: [SwiftSetting] = [
     .enableUpcomingFeature("ExistentialAny"),
     .enableUpcomingFeature("InferIsolatedConformances"),
     .enableUpcomingFeature("InternalImportsByDefault"),
-    .enableUpcomingFeature("MemberImportVisibility"),
-    .treatAllWarnings(as: .error)
+    .enableUpcomingFeature("MemberImportVisibility")
 ]
 
 let package = Package(

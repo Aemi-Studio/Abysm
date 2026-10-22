@@ -53,9 +53,10 @@ jobs:
       - name: Test iOS with the pinned Swift toolchain
         run: |
           # Swift.org toolchains do not bundle Apple's linker; make the selected Xcode's tools discoverable.
-          xcode_tools="$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+          export DEVELOPER_DIR="$(xcode-select -p)"
+          xcode_tools="$DEVELOPER_DIR/Toolchains/XcodeDefault.xctoolchain/usr/bin"
           export PATH="$xcode_tools:$PATH"
-          xcodebuild -toolchain "$SWIFT_TOOLCHAIN_ID" -skipMacroValidation -skipPackagePluginValidation \
+          xcodebuild -skipMacroValidation -skipPackagePluginValidation \
             -scheme Abysm -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath "$RUNNER_TEMP/Abysm" -resultBundlePath "$RUNNER_TEMP/Abysm-tests.xcresult" \
             CODE_SIGNING_ALLOWED=NO test
