@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   quality:
-    uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@27ce7cb54adcb6daec28a596ed1bc3946edf4fb0
+    uses: Aemi-Studio/aemi/.github/workflows/swift-quality.yml@afc1be3d578045b381e76f6b1712a81b39956ced # aemi afc1be3
     with:
       dev-env-var: ABYSM_DEV
       enable-linux: false

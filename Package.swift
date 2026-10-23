@@ -30,7 +30,7 @@ let package = Package(
         // Pinned by revision, the ecosystem's mechanism (TerminalKit ADR-0005).
         .package(
             url: "https://github.com/Aemi-Studio/aemi.git",
-            revision: "31df13e5fcfbab12b79f82eb46e3669f8e584e29"
+            revision: "afc1be3d578045b381e76f6b1712a81b39956ced"
         )
     ],
     targets: [
